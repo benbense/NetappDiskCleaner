@@ -1,0 +1,33 @@
+﻿<Window x:Class="NetappDiskCleaner.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:NetappDiskCleaner"
+        mc:Ignorable="d"
+        Loaded="Window_Loaded"
+        Title="MainWindow" Height="450" Width="800">
+    <Grid>
+        <StackPanel Orientation="Vertical">
+            <StackPanel Orientation="Horizontal">
+                <Label Content="IP" Width="100"/>
+                <TextBox Name="IPAddress" Height="20"  Width="150"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Label Content="Login" Width="100"/>
+                <TextBox Name="Username" Height="20" Width="150"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Label Content="Password" Width="100"/>
+                <TextBox Name ="Password" Height="20" Width="150"/>
+            </StackPanel>
+            <StackPanel>
+                <Button Name="ConnectButton" Content="Connect" HorizontalAlignment="Left" Height="36" Width="82" Click="ConnectButton_Click"/>
+            </StackPanel>
+            <ScrollViewer>
+                <TextBlock Name="SSHCommTextBlock" HorizontalAlignment="Center" Text="TextBlock" Height="123" Width="300"/>
+            </ScrollViewer>
+        </StackPanel>
+
+    </Grid>
+</Window>
