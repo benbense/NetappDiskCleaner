@@ -4,30 +4,52 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:NetappDiskCleaner"
+        xmlns:Model="using:NetappDiskCleaner.Model"
         mc:Ignorable="d"
         Loaded="Window_Loaded"
-        Title="MainWindow" Height="450" Width="800">
+        Title="MainWindow" Height="450" Width="800" MinHeight="300" MinWidth="200">
     <Grid>
-        <StackPanel Orientation="Vertical">
-            <StackPanel Orientation="Horizontal">
-                <Label Content="IP" Width="100"/>
-                <TextBox Name="IPAddress" Height="20"  Width="150"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal">
-                <Label Content="Login" Width="100"/>
-                <TextBox Name="Username" Height="20" Width="150"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal">
-                <Label Content="Password" Width="100"/>
-                <TextBox Name ="Password" Height="20" Width="150"/>
-            </StackPanel>
-            <StackPanel>
-                <Button Name="ConnectButton" Content="Connect" HorizontalAlignment="Left" Height="36" Width="82" Click="ConnectButton_Click"/>
-            </StackPanel>
-            <ScrollViewer>
-                <TextBlock Name="SSHCommTextBlock" HorizontalAlignment="Center" Text="TextBlock" Height="123" Width="300"/>
-            </ScrollViewer>
-        </StackPanel>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="100"/>
+            <ColumnDefinition Width="150"/>
+            <ColumnDefinition Width="100" />
+            <ColumnDefinition Width="20" />
+            <ColumnDefinition Width="300" />
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="30" />
+            <RowDefinition Height="30"/>
+            <RowDefinition Height="30"/>
+            <RowDefinition Height="30"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Label Content="IP:" Width="100" Grid.Row="0" Grid.Column="0"/>
+        <TextBox Name="IPAddress" Height="20"  Width="150" Grid.Row="0" Grid.Column="1"/>
+        <Label Content="Username:" Width="100" Grid.Row="1" Grid.Column="0"/>
+        <TextBox Name="Username" Height="20" Width="150" Grid.Row="1" Grid.Column="1"/>
+        <Label Content="Password:" Width="100" Grid.Row="2" Grid.Column="0"/>
+        <PasswordBox Name="Password" Height="20" Width="150" Grid.Row="2" Grid.Column="1"/>
+        <Button Name="ConnectButton" Content="Connect" HorizontalAlignment="Left" Height="30" Width="82" Click="ConnectButton_Click" Grid.Row="3" Grid.Column="0" />
+        <Label Content="Total Disks: " Grid.Row="0" Grid.Column="2" />
+        <Label Name="AllDisksCount" Content="0" Grid.Row="0" Grid.Column="3" Width="100" HorizontalAlignment="Left" />
+        <Label Content="Foreign Disks: " Grid.Row="1" Grid.Column="2" />
+        <Label Name="ForeignDisksCount" Foreground="Red" Content="0" Grid.Row="1" Grid.Column="3" Width="100" HorizontalAlignment="Left" />
+        <Label Content="Broken Disks: " Grid.Row="2" Grid.Column="2" />
+        <Label Name="BrokenDisksCount" Foreground="Green" Content="0" Grid.Row="2" Grid.Column="3" Width="100" HorizontalAlignment="Left" />
+        <ListView ItemsSource="{Binding AllDisks, Mode=OneWay}" Grid.RowSpan="4" Grid.Column="4">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="Name" Width="50" DisplayMemberBinding="{Binding ClusterName}" />
+                    <GridViewColumn Header="Type" Width="40" DisplayMemberBinding="{Binding Type}" />
+                    <GridViewColumn Header="Containter Type" DisplayMemberBinding="{Binding ContainerType}" />
+                    <GridViewColumn Header="Owner" DisplayMemberBinding="{Binding OwnerName}" />
+                </GridView>
+            </ListView.View>
+        </ListView>
+        <Button Name="ExecuteButton" IsEnabled="False" Content="Start" Click="ExecuteButton_Click"  Grid.Row="3" Grid.Column="2" />
+        <TextBox Name="SSHCommTextBlock" TextWrapping="Wrap" IsReadOnly="True" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalScrollBarVisibility="Auto" Grid.Row="4" Grid.ColumnSpan="6"/>
 
     </Grid>
 </Window>
+    
