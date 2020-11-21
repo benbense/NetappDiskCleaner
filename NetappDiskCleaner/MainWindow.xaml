@@ -22,6 +22,7 @@
             <RowDefinition Height="30"/>
             <RowDefinition Height="30"/>
             <RowDefinition Height="30"/>
+            <RowDefinition Height="30"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <Label Content="IP:" Width="100" Grid.Row="0" Grid.Column="0"/>
@@ -37,7 +38,7 @@
         <Label Name="ForeignDisksCount" Foreground="Red" Content="0" Grid.Row="1" Grid.Column="3" Width="100" HorizontalAlignment="Left" />
         <Label Content="Broken Disks: " Grid.Row="2" Grid.Column="2" />
         <Label Name="BrokenDisksCount" Foreground="Green" Content="0" Grid.Row="2" Grid.Column="3" Width="100" HorizontalAlignment="Left" />
-        <ListView ItemsSource="{Binding AllDisks, Mode=OneWay}" Grid.RowSpan="4" Grid.Column="4">
+        <ListView ItemsSource="{Binding AllDisks, Mode=OneWay}" Grid.RowSpan="4" Grid.Column="4" Background="FloralWhite">
             <ListView.View>
                 <GridView>
                     <GridViewColumn Header="Name" Width="50" DisplayMemberBinding="{Binding ClusterName}" />
@@ -48,7 +49,8 @@
             </ListView.View>
         </ListView>
         <Button Name="ExecuteButton" IsEnabled="False" Content="Start" Click="ExecuteButton_Click"  Grid.Row="3" Grid.Column="2" />
-        <TextBox Name="SSHCommTextBlock" TextWrapping="Wrap" IsReadOnly="True" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalScrollBarVisibility="Auto" Grid.Row="4" Grid.ColumnSpan="6"/>
+        <Label Content="CLI Output" Grid.Row="4" Grid.ColumnSpan="6" HorizontalAlignment="Center" />
+        <TextBox Name="SSHCommTextBlock" TextWrapping="Wrap" IsReadOnly="True" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalScrollBarVisibility="Auto" Grid.Row="5" Grid.ColumnSpan="6" Background="FloralWhite"/>
 
     </Grid>
 </Window>
