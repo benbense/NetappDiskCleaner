@@ -27,5 +27,6 @@ namespace NetappDiskCleaner.Model
         public DiskType Type { get; set; }
         public ContainerType ContainerType { get; set; }
         public string OwnerName { get; set; }
+        public List<int> Partitions { get; set; }
     }
 }

@@ -240,6 +240,10 @@ namespace NetappDiskCleaner
 
             foreach (var row in outputAfterTwoRows.Split("\n"))
             {
+                var partitions = new List<int>();
+                var isPartition = false;
+                int partitionNumber = -1;
+
                 if (row.Contains("PRkey="))
                 {
                     continue;
@@ -251,7 +255,10 @@ namespace NetappDiskCleaner
 
                 if (diskNodeName.Contains("P"))
                 {
-                    continue;
+                    isPartition = true;
+                    var diskNodeAndPartition = diskNodeName.Split("P");
+                    diskNodeName = diskNodeAndPartition[0];
+                    partitionNumber = int.Parse(diskNodeAndPartition[1]);
                 }
 
                 int wordsSkipped = 0;
@@ -271,7 +278,14 @@ namespace NetappDiskCleaner
 
                         var wordsInPart = partWithClusterName.Split("\t");
 
-                        clusterName = wordsInPart[2];
+                        if (isPartition)
+                        {
+                            clusterName = wordsInPart[2].Split(".P")[0];
+                        }
+                        else
+                        {
+                            clusterName = wordsInPart[2];
+                        }
 
                         break;
                     }
@@ -290,7 +304,19 @@ namespace NetappDiskCleaner
                     continue;
                 }
 
-                matchingDisk.NodeName = diskNodeName;
+                if (isPartition)
+                {
+                    if (matchingDisk.Partitions == null)
+                    {
+                        matchingDisk.Partitions = new List<int>();
+                    }
+
+                    matchingDisk.Partitions.Add(partitionNumber);
+                }
+                else
+                {
+                    matchingDisk.NodeName = diskNodeName;
+                }
             }
         }
 
@@ -338,17 +364,23 @@ namespace NetappDiskCleaner
             disks.ForEach(disk =>
             ExecuteAndPrintOutput(
                 stream,
-                $"disk assign -disk {disk.ClusterName} -node {node.Name}"));
+                $"disk assign -disk {disk.ClusterName} -owner {node.Name}"));
         }
 
-        private void RemoveOwnerOfDisks(ShellStream client, List<Disk> disks)
+        private void RemoveOwnerOfDisksNodeMode(ShellStream client, List<Disk> disks)
         {
             disks.ForEach(disk =>
             {
-                ExecuteAndPrintOutput(client, $"disk removeowner -disk {disk.ClusterName} -data2");
-                ExecuteAndPrintOutput(client, $"disk removeowner -disk {disk.ClusterName} -data1");
-                ExecuteAndPrintOutput(client, $"disk removeowner -disk {disk.ClusterName} -data");
-                ExecuteAndPrintOutput(client, $"disk removeowner -disk {disk.ClusterName}");
+                if (disk.Partitions != null)
+                {
+                    foreach (var partition in disk.Partitions.OrderByDescending(x => x))
+                    {
+                        ExecuteAndPrintOutput(client, $"disk remove_ownership {disk.NodeName}P{partition}");
+                        ExecuteAndPrintOutput(client, $"y");
+                    }
+                }
+                ExecuteAndPrintOutput(client, $"disk remove_ownership {disk.NodeName}");
+                ExecuteAndPrintOutput(client, $"y");
             });
         }
 
@@ -508,7 +540,7 @@ namespace NetappDiskCleaner
             if (textToExpect != null)
             {
                 client.Expect(commandText);
-                output = client.Expect(textToExpect);
+                output = client.Expect(textToExpect); //this need to expect also confirmation prompts in node mode like "are you ready to continue?"
             }
             else
             {
@@ -550,18 +582,29 @@ namespace NetappDiskCleaner
             MessageBoxResult executeConfirmationMessageBox = MessageBox.Show("This will start the cleanup process, are you sure you want to continue?", "Cleanup Confirmation", MessageBoxButton.YesNo);
             if (executeConfirmationMessageBox == MessageBoxResult.Yes)
             {
-                RemoveOwnerOfDisks(stream, foreignDisks);
+
 
                 var firstOwnedNode = nodes[0];
-
-                AssignDisksToNode(stream, foreignDisks, firstOwnedNode);
-
-                var foreignAggregates = GetForeignAggregates(stream, aggregates).ToList();
-                RemoveStaleRecordFromAggregates(stream, foreignAggregates);
 
                 SetEnvironmentAndEnterNodeShell(stream, firstOwnedNode);
 
                 EnrichDisksViaNodeShell(stream, foreignDisks);
+
+                RemoveOwnerOfDisksNodeMode(stream, foreignDisks);
+
+                ExitNodeShell(stream);
+
+                AssignDisksToNode(stream, foreignDisks, firstOwnedNode);
+
+                SetEnvironmentAndEnterNodeShell(stream, firstOwnedNode);
+
+                AssignDisksToNodeNodeMode(stream, foreignDisks, firstOwnedNode);
+
+                ExitNodeShell(stream);
+                var foreignAggregates = GetForeignAggregates(stream, aggregates).ToList();
+                RemoveStaleRecordFromAggregates(stream, foreignAggregates);
+
+                SetEnvironmentAndEnterNodeShell(stream, firstOwnedNode);
 
                 UnpartitionDisks(stream, foreignDisks);
 
@@ -569,7 +612,26 @@ namespace NetappDiskCleaner
 
                 ZerospareDisksIfNeeded(stream, foreignDisks);
 
-                RemoveOwnerOfDisks(stream, foreignDisks);
+                RemoveOwnerOfDisksClusterMode(stream, foreignDisks);
+            }
+        }
+
+        private void RemoveOwnerOfDisksClusterMode(ShellStream stream, List<Disk> disks)
+        {
+            foreach (var disk in disks)
+            {
+                ExecuteAndPrintOutput(stream, $"disk removeowner {disk.ClusterName}");
+            }
+        }
+
+        private void AssignDisksToNodeNodeMode(ShellStream stream, List<Disk> disks, Node node)
+        {
+            foreach (var disk in disks)
+            {
+                foreach (var partition in disk.Partitions.OrderByDescending(x => x))
+                {
+                    ExecuteAndPrintOutput(stream, $"disk assign {disk.NodeName}P{partition}");
+                }
             }
         }
     }

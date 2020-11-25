@@ -7,7 +7,7 @@
         xmlns:Model="using:NetappDiskCleaner.Model"
         mc:Ignorable="d"
         Loaded="Window_Loaded"
-        Title="MainWindow" Height="450" Width="800" MinHeight="300" MinWidth="200">
+        Title="Netapp Disk Cleaner" Height="450" Width="800" MinHeight="300" MinWidth="200">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="100"/>
