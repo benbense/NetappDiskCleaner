@@ -18,6 +18,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 
 namespace NetappDiskCleaner
 {
@@ -36,19 +37,22 @@ namespace NetappDiskCleaner
         private ShellStream stream;
 
         private List<Disk> _allDisks;
+        private List<Disk> _displayedDisks;
+        private List<Disk> _foreignDisks;
+        private List<Disk> _brokenDisks;
 
         public List<Node> nodes;
         public List<Aggregate> aggregates;
 
-        public List<Disk> AllDisks
+        public List<Disk> DisplayedDisks
         {
             get
             {
-                return _allDisks;
+                return _displayedDisks;
             }
             set
             {
-                _allDisks = value;
+                _displayedDisks = value;
                 NotifyPropertyChanged();
             }
         }
@@ -58,9 +62,6 @@ namespace NetappDiskCleaner
             PropertyChanged.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
-        public List<Disk> brokenDisks;
-        public List<Disk> foreignDisks;
-
         public MainWindow()
         {
             InitializeComponent();
@@ -68,6 +69,8 @@ namespace NetappDiskCleaner
         }
         private void ConnectButton_Click(object sender, RoutedEventArgs e)
         {
+            CleanUI();
+
             SetButtonsState(false);
 
             sshClient = new SshClient(IPAddress.Text, Username.Text, Password.Password);
@@ -107,15 +110,18 @@ namespace NetappDiskCleaner
             }
 
             aggregates = GetAggregates(stream);
-            AllDisks = GetDisks(stream);
-            ShowAllDisks(AllDisks);
+            _allDisks = GetDisks(stream);
+            ShowAllDisks(_allDisks);
 
-            // TODO - Show user the broken disks
-            brokenDisks = GetBrokenDisks(AllDisks);
-            ShowAllBrokenDisks(brokenDisks);
+            _brokenDisks = GetBrokenDisks(_allDisks);
+            ShowAllBrokenDisks(_brokenDisks);
 
-            foreignDisks = GetForeignDisksFromDisks(AllDisks, nodes);
-            ShowAllForeignDisks(foreignDisks);
+            _foreignDisks = GetForeignDisksFromDisks(_allDisks, nodes);
+            ShowAllForeignDisks(_foreignDisks);
+
+            DisplayedDisks = _allDisks;
+
+            Checkboxes.IsEnabled = true;
         }
 
         private void GetONTAPVersion(ShellStream client)
@@ -127,7 +133,7 @@ namespace NetappDiskCleaner
             if (!netappVersion.Contains("NetApp Release"))
             {
                 ONTAPVersion.Foreground = System.Windows.Media.Brushes.Red;
-                ONTAPVersion.Content = "Error retrieving ONTAP version!";
+                ONTAPVersion.Content = "Invalid ONTAP version!";
             }
             else
             {
@@ -242,8 +248,6 @@ namespace NetappDiskCleaner
             disks.ForEach(foreignDisk =>
             {
                 ExecuteAndPrintOutput(stream, $"disk unpartition {foreignDisk.NodeName}");
-
-                // TODO - See if we need a double confirmation for some reason
                 ExecuteAndPrintOutput(stream, "y");
             });
         }
@@ -326,11 +330,6 @@ namespace NetappDiskCleaner
 
                 if (isPartition)
                 {
-                    if (matchingDisk.Partitions == null)
-                    {
-                        matchingDisk.Partitions = new List<int>();
-                    }
-
                     matchingDisk.Partitions.Add(partitionNumber);
                 }
                 else
@@ -395,12 +394,20 @@ namespace NetappDiskCleaner
                 {
                     foreach (var partition in disk.Partitions.OrderByDescending(x => x))
                     {
-                        ExecuteAndPrintOutput(client, $"disk remove_ownership {disk.NodeName}P{partition}");
-                        ExecuteAndPrintOutput(client, $"y");
+                        var partitionOutput = ExecuteAndPrintOutput(client, $"disk remove_ownership {disk.NodeName}P{partition}", "Volumes must be taken offline", TimeSpan.FromSeconds(10));
+
+                        if (partitionOutput != null)
+                        {
+                            ExecuteAndPrintOutput(client, $"y");
+                        }
                     }
                 }
-                ExecuteAndPrintOutput(client, $"disk remove_ownership {disk.NodeName}");
-                ExecuteAndPrintOutput(client, $"y");
+                var output = ExecuteAndPrintOutput(client, $"disk remove_ownership {disk.NodeName}", "Volumes must be taken offline", TimeSpan.FromSeconds(10));
+
+                if (output != null)
+                {
+                    ExecuteAndPrintOutput(client, $"y");
+                }
             });
         }
 
@@ -428,7 +435,8 @@ namespace NetappDiskCleaner
                     OwnerName = aggrFields[1],
                     ContainerType = StringToContainerType(aggrFields[2]),
                     Type = StringToDiskType(aggrFields[3]),
-                    NodeName = null
+                    NodeName = null,
+                    Partitions = new List<int>()
                 });
             }
 
@@ -549,9 +557,10 @@ namespace NetappDiskCleaner
         private void PrintToSSHCommTextBlock(string output)
         {
             SSHCommTextBlock.Text = $"{SSHCommTextBlock.Text}{Environment.NewLine}{output}";
+            SSHCommTextBlock.ScrollToEnd();
         }
 
-        private string ExecuteAndPrintOutput(ShellStream client, string commandText, string textToExpect = ">")
+        private string ExecuteAndPrintOutput(ShellStream client, string commandText, string textToExpect = ">", TimeSpan? timeout = null)
         {
             client.Write(commandText + "\n");
 
@@ -560,7 +569,8 @@ namespace NetappDiskCleaner
             if (textToExpect != null)
             {
                 client.Expect(commandText);
-                output = client.Expect(textToExpect); //this need to expect also confirmation prompts in node mode like "are you ready to continue?"
+
+                output = timeout.HasValue ? client.Expect(textToExpect, timeout.Value) : client.Expect(textToExpect);
             }
             else
             {
@@ -574,7 +584,7 @@ namespace NetappDiskCleaner
 
             client.Flush();
 
-            var fixedOutput = output.Trim();
+            var fixedOutput = output?.Trim();
 
             PrintToSSHCommTextBlock(fixedOutput);
 
@@ -587,55 +597,19 @@ namespace NetappDiskCleaner
             Username.Text = (string)Settings1.Default[settingsFileUsernameKey];
             Password.Password = (string)Settings1.Default[settingsFilePasswordKey];
         }
-
-        private void ShowAllDisks_Click(object sender, RoutedEventArgs e)
+        private void TerminateSSHSession(ShellStream stream, SshClient sshClient)
         {
+            stream.Close();
+            stream.Dispose();
+            sshClient.Disconnect();
+            sshClient.Dispose();
         }
 
-        private void ShowAllForeignDisks_Click(object sender, RoutedEventArgs e)
+        private void AppenedTextToCurrentProgress(string textToAppend)
         {
-
+            CurrentProgress.Text = textToAppend + Environment.NewLine + CurrentProgress.Text;
+            Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(delegate { UpdateLayout(); }));
         }
-
-        private void ExecuteButton_Click(object sender, RoutedEventArgs e)
-        {
-            MessageBoxResult executeConfirmationMessageBox = MessageBox.Show("This will start the cleanup process, are you sure you want to continue?", "Cleanup Confirmation", MessageBoxButton.YesNo);
-            if (executeConfirmationMessageBox == MessageBoxResult.Yes)
-            {
-
-
-                var firstOwnedNode = nodes[0];
-
-                SetEnvironmentAndEnterNodeShell(stream, firstOwnedNode);
-
-                EnrichDisksViaNodeShell(stream, foreignDisks);
-
-                RemoveOwnerOfDisksNodeMode(stream, foreignDisks);
-
-                ExitNodeShell(stream);
-
-                AssignDisksToNode(stream, foreignDisks, firstOwnedNode);
-
-                SetEnvironmentAndEnterNodeShell(stream, firstOwnedNode);
-
-                AssignDisksToNodeNodeMode(stream, foreignDisks, firstOwnedNode);
-
-                ExitNodeShell(stream);
-                var foreignAggregates = GetForeignAggregates(stream, aggregates).ToList();
-                RemoveStaleRecordFromAggregates(stream, foreignAggregates);
-
-                SetEnvironmentAndEnterNodeShell(stream, firstOwnedNode);
-
-                UnpartitionDisks(stream, foreignDisks);
-
-                ExitNodeShell(stream);
-
-                ZerospareDisksIfNeeded(stream, foreignDisks);
-
-                RemoveOwnerOfDisksClusterMode(stream, foreignDisks);
-            }
-        }
-
         private void RemoveOwnerOfDisksClusterMode(ShellStream stream, List<Disk> disks)
         {
             foreach (var disk in disks)
@@ -653,6 +627,126 @@ namespace NetappDiskCleaner
                     ExecuteAndPrintOutput(stream, $"disk assign {disk.NodeName}P{partition}");
                 }
             }
+        }
+
+        private void DisksCheckBoxes_Checked_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!IsLoaded)
+            {
+                return;
+            }
+
+            var checkbox = (CheckBox)sender;
+
+            if (checkbox.Name == AllDisksCheckBox.Name && AllDisksCheckBox.IsChecked.Value)
+            {
+                UnownedDisksCheckBox.IsChecked = false;
+                OwnedDisksCheckBox.IsChecked = false;
+                BrokenDisksCheckBox.IsChecked = false;
+            }
+            else if (checkbox.Name != AllDisksCheckBox.Name && checkbox.IsChecked.Value)
+            {
+                AllDisksCheckBox.IsChecked = false;
+            }
+
+            IEnumerable<Disk> tempFilteredDisks = _allDisks;
+
+            tempFilteredDisks = tempFilteredDisks.Where(filteredDisk =>
+            {
+                bool doesPassFilter = false;
+
+                if (AllDisksCheckBox.IsChecked.Value)
+                {
+                    doesPassFilter |= _allDisks.Any(disk => disk.ClusterName == filteredDisk.ClusterName);
+                }
+                if (UnownedDisksCheckBox.IsChecked.Value)
+                {
+                    doesPassFilter |= _foreignDisks.Any(disk => disk.ClusterName == filteredDisk.ClusterName);
+                }
+                if (OwnedDisksCheckBox.IsChecked.Value)
+                {
+                    doesPassFilter |= !_foreignDisks.Any(disk => disk.ClusterName == filteredDisk.ClusterName);
+                }
+                if (BrokenDisksCheckBox.IsChecked.Value)
+                {
+                    doesPassFilter |= _brokenDisks.Any(disk => disk.ClusterName == filteredDisk.ClusterName);
+                }
+
+                return doesPassFilter;
+            });
+
+            DisplayedDisks = tempFilteredDisks.ToList();
+        }
+        private void ExecuteButton_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBoxResult executeConfirmationMessageBox = MessageBox.Show("This will start the cleanup process, are you sure you want to continue?", "Cleanup Confirmation", MessageBoxButton.YesNo);
+            if (executeConfirmationMessageBox == MessageBoxResult.Yes)
+            {
+                var firstOwnedNode = nodes[0];
+
+                AppenedTextToCurrentProgress("Entering node shell");
+                SetEnvironmentAndEnterNodeShell(stream, firstOwnedNode);
+
+                AppenedTextToCurrentProgress("Retrieving disk info from (Node Shell)");
+                EnrichDisksViaNodeShell(stream, _foreignDisks);
+
+                AppenedTextToCurrentProgress("Removing owner (Node Shell) this might take some time");
+                RemoveOwnerOfDisksNodeMode(stream, _foreignDisks);
+
+                AppenedTextToCurrentProgress("Exiting node shell");
+                ExitNodeShell(stream);
+
+                AppenedTextToCurrentProgress("Assigning disks to node (Cluster Shell)");
+                AssignDisksToNode(stream, _foreignDisks, firstOwnedNode);
+
+                AppenedTextToCurrentProgress("Entering node shell");
+                SetEnvironmentAndEnterNodeShell(stream, firstOwnedNode);
+
+                AppenedTextToCurrentProgress("Assigning disks to node (Node Shell)");
+                AssignDisksToNodeNodeMode(stream, _foreignDisks, firstOwnedNode);
+
+                AppenedTextToCurrentProgress("Exiting node shell");
+                ExitNodeShell(stream);
+
+                AppenedTextToCurrentProgress("Retrieving foreign aggregates");
+                var foreignAggregates = GetForeignAggregates(stream, aggregates).ToList();
+
+                AppenedTextToCurrentProgress("Removing stale record");
+                RemoveStaleRecordFromAggregates(stream, foreignAggregates);
+
+                AppenedTextToCurrentProgress("Entering node shell");
+                SetEnvironmentAndEnterNodeShell(stream, firstOwnedNode);
+
+                AppenedTextToCurrentProgress("Unpartitioning disks");
+                UnpartitionDisks(stream, _foreignDisks);
+
+                AppenedTextToCurrentProgress("Exiting node shell");
+                ExitNodeShell(stream);
+
+                AppenedTextToCurrentProgress("Zeroing spares (if needed)");
+                ZerospareDisksIfNeeded(stream, _foreignDisks);
+
+                AppenedTextToCurrentProgress("Removing ownership from disk");
+                RemoveOwnerOfDisksClusterMode(stream, _foreignDisks);
+
+                AppenedTextToCurrentProgress("Finished!");
+                TerminateSSHSession(stream, sshClient);
+                SetButtonsState(true);
+            }
+        }
+
+        private void CleanUI()
+        {
+
+            //TODO - Complete
+            _allDisks = new List<Disk>();
+            _foreignDisks = new List<Disk>();
+            _brokenDisks = new List<Disk>();
+
+            DisplayedDisks = new List<Disk>();
+            SSHCommTextBlock.Clear();
+            CurrentProgress.Clear();
+
         }
     }
 }

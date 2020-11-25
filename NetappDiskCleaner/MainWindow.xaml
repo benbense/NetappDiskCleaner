@@ -7,7 +7,7 @@
         xmlns:Model="using:NetappDiskCleaner.Model"
         mc:Ignorable="d"
         Loaded="Window_Loaded"
-        Title="MainWindow" Height="450" Width="800" MinHeight="300" MinWidth="200">
+        Title="Netapp Disk Cleaner" Height="450" Width="800" MinHeight="300" MinWidth="200">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="100"/>
@@ -39,7 +39,7 @@
         <Label Name="ForeignDisksCount" Foreground="Red" Content="0" Grid.Row="1" Grid.Column="3" Width="100" HorizontalAlignment="Left" />
         <Label Content="Broken Disks: " Grid.Row="2" Grid.Column="2" />
         <Label Name="BrokenDisksCount" Foreground="Green" Content="0" Grid.Row="2" Grid.Column="3" Width="100" HorizontalAlignment="Left" />
-        <ListView ItemsSource="{Binding AllDisks, Mode=OneWay}" Grid.RowSpan="4" Grid.Column="4" Background="FloralWhite">
+        <ListView Name="DisksListView" ItemsSource="{Binding DisplayedDisks, Mode=OneWay}" Grid.RowSpan="4" Grid.Column="4" Background="FloralWhite">
             <ListView.View>
                 <GridView>
                     <GridViewColumn Header="Name" Width="50" DisplayMemberBinding="{Binding ClusterName}" />
@@ -49,10 +49,15 @@
                 </GridView>
             </ListView.View>
         </ListView>
+        <StackPanel Name="Checkboxes" Grid.Row="1" Grid.RowSpan="4" Grid.Column="7" IsEnabled="False">
+            <CheckBox Name="AllDisksCheckBox" IsChecked="True" Content="All" Checked="DisksCheckBoxes_Checked_Changed" Unchecked="DisksCheckBoxes_Checked_Changed" />
+            <CheckBox Name="OwnedDisksCheckBox" Content="Owned" Checked="DisksCheckBoxes_Checked_Changed" Unchecked="DisksCheckBoxes_Checked_Changed" />
+            <CheckBox Name="UnownedDisksCheckBox" Content="Unowned" Checked="DisksCheckBoxes_Checked_Changed" Unchecked="DisksCheckBoxes_Checked_Changed" />
+            <CheckBox Name="BrokenDisksCheckBox" Content="Broken" Click="DisksCheckBoxes_Checked_Changed" Unchecked="DisksCheckBoxes_Checked_Changed" />
+        </StackPanel>
         <Button Name="ExecuteButton" IsEnabled="False" Content="Start" Click="ExecuteButton_Click"  Grid.Row="3" Grid.Column="2" />
-        <Label Content="CLI Output" Grid.Row="4" Grid.ColumnSpan="6" HorizontalAlignment="Center" />
+        <TextBox IsReadOnly="True" Name="CurrentProgress" Grid.Row="4" Grid.ColumnSpan="6" BorderBrush="Transparent" Height="20" HorizontalAlignment="Left" />
         <TextBox Name="SSHCommTextBlock" TextWrapping="Wrap" IsReadOnly="True" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalScrollBarVisibility="Auto" Grid.Row="5" Grid.ColumnSpan="6" Background="FloralWhite"/>
-
     </Grid>
 </Window>
     
