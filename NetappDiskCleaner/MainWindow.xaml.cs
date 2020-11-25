@@ -96,6 +96,8 @@ namespace NetappDiskCleaner
 
             ExecuteNetappEnvironmentCommands(stream);
 
+            GetONTAPVersion(stream);
+
             nodes = GetNodes(stream);
 
             if (nodes?.Count == 0)
@@ -114,6 +116,24 @@ namespace NetappDiskCleaner
 
             foreignDisks = GetForeignDisksFromDisks(AllDisks, nodes);
             ShowAllForeignDisks(foreignDisks);
+        }
+
+        private void GetONTAPVersion(ShellStream client)
+        {
+            var result = ExecuteAndPrintOutput(client, "version");
+
+            var lines = result.Split(":");
+            var netappVersion = lines[0];
+            if (!netappVersion.Contains("NetApp Release"))
+            {
+                ONTAPVersion.Foreground = System.Windows.Media.Brushes.Red;
+                ONTAPVersion.Content = "Error retrieving ONTAP version!";
+            }
+            else
+            {
+                ONTAPVersion.Foreground = System.Windows.Media.Brushes.Green;
+                ONTAPVersion.Content = lines[0];
+            }
         }
 
         private void SetButtonsState(bool isEnabled)
