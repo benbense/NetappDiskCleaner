@@ -7,20 +7,24 @@
         xmlns:Model="using:NetappDiskCleaner.Model"
         mc:Ignorable="d"
         Loaded="Window_Loaded"
-        Title="Netapp Disk Cleaner" Height="450" Width="800" MinHeight="300" MinWidth="200">
+        Title="Netapp Disk Cleaner" Height="450" Width="820" MinHeight="300" MinWidth="200"
+        Closed="Window_Closed">
+    <Window.TaskbarItemInfo>
+        <TaskbarItemInfo x:Name="taskbarInfo" />
+    </Window.TaskbarItemInfo>
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="100"/>
             <ColumnDefinition Width="150"/>
-            <ColumnDefinition Width="100" />
-            <ColumnDefinition Width="20" />
+            <ColumnDefinition Width="120" />
+            <ColumnDefinition Width="30" />
             <ColumnDefinition Width="300" />
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="30" />
             <RowDefinition Height="30"/>
-            <RowDefinition Height="30"/>
+            <RowDefinition Height="40"/>
             <RowDefinition Height="30"/>
             <RowDefinition Height="30"/>
             <RowDefinition Height="*"/>
@@ -33,12 +37,18 @@
         <PasswordBox Name="Password" Height="20" Width="150" Grid.Row="2" Grid.Column="1"/>
         <Button Name="ConnectButton" Content="Connect" HorizontalAlignment="Left" Height="30" Width="82" Click="ConnectButton_Click" Grid.Row="3" Grid.Column="0" />
         <Label Name="ONTAPVersion" Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" />
-        <Label Content="Total Disks: " Grid.Row="0" Grid.Column="2" />
-        <Label Name="AllDisksCount" Content="0" Grid.Row="0" Grid.Column="3" Width="100" HorizontalAlignment="Left" />
-        <Label Content="Foreign Disks: " Grid.Row="1" Grid.Column="2" />
-        <Label Name="ForeignDisksCount" Foreground="Red" Content="0" Grid.Row="1" Grid.Column="3" Width="100" HorizontalAlignment="Left" />
-        <Label Content="Broken Disks: " Grid.Row="2" Grid.Column="2" />
-        <Label Name="BrokenDisksCount" Foreground="Green" Content="0" Grid.Row="2" Grid.Column="3" Width="100" HorizontalAlignment="Left" />
+        <StackPanel Orientation="Vertical" Grid.Row="0" Grid.Column="2" Grid.RowSpan="3">
+            <Label Content="Total Disks: " />
+            <Label Content="Foreign Disks: " />
+            <Label Content="Broken Disks: "/>
+            <Label Content="Unsupported Disks: "/>
+        </StackPanel>
+        <StackPanel Orientation="Vertical" Grid.Row="0" Grid.Column="3" Grid.RowSpan="3">
+            <Label Name="AllDisksCount" Content="0" Width="100" HorizontalAlignment="Left" />
+            <Label Name="ForeignDisksCount" Foreground="Red" Width="100" HorizontalAlignment="Left" />
+            <Label Name="BrokenDisksCount" Foreground="Green" Width="100" HorizontalAlignment="Left" />
+            <Label Name="UnsupportedDisksCount" Foreground="Green" Width="100" HorizontalAlignment="Left" />
+        </StackPanel>
         <ListView Name="DisksListView" ItemsSource="{Binding DisplayedDisks, Mode=OneWay}" Grid.RowSpan="4" Grid.Column="4" Background="FloralWhite">
             <ListView.View>
                 <GridView>
@@ -54,6 +64,7 @@
             <CheckBox Name="OwnedDisksCheckBox" Content="Owned" Checked="DisksCheckBoxes_Checked_Changed" Unchecked="DisksCheckBoxes_Checked_Changed" />
             <CheckBox Name="UnownedDisksCheckBox" Content="Unowned" Checked="DisksCheckBoxes_Checked_Changed" Unchecked="DisksCheckBoxes_Checked_Changed" />
             <CheckBox Name="BrokenDisksCheckBox" Content="Broken" Click="DisksCheckBoxes_Checked_Changed" Unchecked="DisksCheckBoxes_Checked_Changed" />
+            <CheckBox Name="UnsupportedDisksCheckBox" Content="Unsupported" Click="DisksCheckBoxes_Checked_Changed" Unchecked="DisksCheckBoxes_Checked_Changed" />
         </StackPanel>
         <Button Name="ExecuteButton" IsEnabled="False" Content="Start" Click="ExecuteButton_Click"  Grid.Row="3" Grid.Column="2" />
         <TextBox IsReadOnly="True" Name="CurrentProgress" Grid.Row="4" Grid.ColumnSpan="6" BorderBrush="Transparent" Height="20" HorizontalAlignment="Left" />

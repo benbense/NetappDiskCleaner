@@ -35,11 +35,13 @@ namespace NetappDiskCleaner
 
         private SshClient sshClient;
         private ShellStream stream;
+        private bool areStreamsOpen = false;
 
         private List<Disk> _allDisks;
         private List<Disk> _displayedDisks;
         private List<Disk> _foreignDisks;
         private List<Disk> _brokenDisks;
+        private List<Disk> _unsupportedDisks;
 
         public List<Node> nodes;
         public List<Aggregate> aggregates;
@@ -67,8 +69,10 @@ namespace NetappDiskCleaner
             InitializeComponent();
             this.DataContext = this;
         }
+
         private void ConnectButton_Click(object sender, RoutedEventArgs e)
         {
+
             CleanUI();
 
             SetButtonsState(false);
@@ -81,10 +85,13 @@ namespace NetappDiskCleaner
             }
             catch (Exception ex)
             {
-                MessageBox.Show("An error occured while connecting : \n" + ex.Message);
+                UpdateTaskbarErrorState(1, System.Windows.Shell.TaskbarItemProgressState.Error);
+                MessageBox.Show("An error occured while connecting : \n" + ex.Message, "Error!");
                 SetButtonsState(true);
                 sshClient.Dispose();
             }
+
+            areStreamsOpen = true;
 
             Settings1.Default[settingsFileIpKey] = IPAddress.Text;
             Settings1.Default[settingsFileUsernameKey] = Username.Text;
@@ -105,7 +112,8 @@ namespace NetappDiskCleaner
 
             if (nodes?.Count == 0)
             {
-                MessageBox.Show("No nodes were found! Make sure NetApp is configured well or contact the developer");
+                UpdateTaskbarErrorState(1, System.Windows.Shell.TaskbarItemProgressState.Error);
+                MessageBox.Show("No nodes were found! Make sure NetApp is configured well or contact the developer", "Error!");
                 return;
             }
 
@@ -116,12 +124,59 @@ namespace NetappDiskCleaner
             _brokenDisks = GetBrokenDisks(_allDisks);
             ShowAllBrokenDisks(_brokenDisks);
 
-            _foreignDisks = GetForeignDisksFromDisks(_allDisks, nodes);
+            _unsupportedDisks = GetUnsupportedDisks(_allDisks);
+            ShowAllUnsupportedDisks(_unsupportedDisks);
+
+            _foreignDisks = GetForeignDisksFromDisks(_allDisks, nodes, _unsupportedDisks);
             ShowAllForeignDisks(_foreignDisks);
 
             DisplayedDisks = _allDisks;
 
             Checkboxes.IsEnabled = true;
+        }
+
+        private void UpdateTaskbarErrorState(double progressValue, System.Windows.Shell.TaskbarItemProgressState progressState)
+        {
+            taskbarInfo.ProgressValue = progressValue;
+            taskbarInfo.ProgressState = progressState;
+        }
+
+        private void UpdateTaskbarErrorState(double progressValue, System.Windows.Shell.TaskbarItemProgressState progressState, string description)
+        {
+            UpdateTaskbarErrorState(progressValue, progressState);
+
+            taskbarInfo.Description = description;
+        }
+
+        private void ShowAllUnsupportedDisks(List<Disk> disks)
+        {
+            if (disks.Count > 0)
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine($"Found {disks.Count} unsupported disks");
+                foreach (var disk in disks)
+                {
+                    sb.AppendLine(disk.ClusterName);
+                }
+                MessageBox.Show(sb.ToString(), $"{disks.Count} Unsupported Disks");
+
+                UnsupportedDisksCount.Content = disks.Count.ToString();
+                UnsupportedDisksCount.Foreground = System.Windows.Media.Brushes.Red;
+            }
+            UnsupportedDisksCount.Content = disks.Count.ToString();
+            if (disks.Count <= 0)
+            {
+                UnsupportedDisksCount.Foreground = System.Windows.Media.Brushes.Green;
+            }
+            else
+            {
+                UnsupportedDisksCount.Foreground = System.Windows.Media.Brushes.Red;
+            }
+        }
+
+        private List<Disk> GetUnsupportedDisks(List<Disk> disks)
+        {
+            return disks.Where(disk => disk.ClusterName.Contains(":") && disk.ContainerType != ContainerType.Broken).ToList();
         }
 
         private void GetONTAPVersion(ShellStream client)
@@ -158,18 +213,26 @@ namespace NetappDiskCleaner
 
         private void ShowAllForeignDisks(List<Disk> disks)
         {
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine($"Found {disks.Count} foreign disks");
-            foreach (var disk in disks)
+            if (disks.Count > 0)
             {
-                sb.AppendLine(disk.ClusterName);
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine($"Found {disks.Count} foreign disks");
+                foreach (var disk in disks)
+                {
+                    sb.AppendLine(disk.ClusterName);
+                }
+                MessageBox.Show(sb.ToString(), $"{disks.Count} Foreign Disks");
             }
-            MessageBox.Show(sb.ToString());
 
             ForeignDisksCount.Content = disks.Count.ToString();
             if (disks.Count <= 0)
             {
                 ForeignDisksCount.Foreground = System.Windows.Media.Brushes.Red;
+                if (MessageBox.Show("No foreign disks were found, insert disks and re-launch the program.", "No new disks!", MessageBoxButton.OK) == MessageBoxResult.OK)
+                {
+                    System.Windows.Application.Current.Shutdown();
+                }
+
             }
             else
             {
@@ -187,10 +250,15 @@ namespace NetappDiskCleaner
                 {
                     sb.AppendLine(disk.ClusterName);
                 }
-                MessageBox.Show(sb.ToString());
+                MessageBox.Show(sb.ToString(), $"{disks.Count} Broken Disks");
 
-                ForeignDisksCount.Content = disks.Count.ToString();
-                ForeignDisksCount.Foreground = System.Windows.Media.Brushes.Red;
+                BrokenDisksCount.Content = disks.Count.ToString();
+                BrokenDisksCount.Foreground = System.Windows.Media.Brushes.Red;
+            }
+            BrokenDisksCount.Content = disks.Count.ToString();
+            if (disks.Count <= 0)
+            {
+                BrokenDisksCount.Foreground = System.Windows.Media.Brushes.Green;
             }
         }
 
@@ -317,7 +385,8 @@ namespace NetappDiskCleaner
 
                 if (clusterName == null)
                 {
-                    MessageBox.Show("Couldnt find cluster name of a disk in node mode! (disk show -m)");
+                    UpdateTaskbarErrorState(1, System.Windows.Shell.TaskbarItemProgressState.Error);
+                    MessageBox.Show("Couldnt find cluster name of a disk in node mode! (disk show -m)", "Error!");
                     continue;
                 }
 
@@ -394,7 +463,7 @@ namespace NetappDiskCleaner
                 {
                     foreach (var partition in disk.Partitions.OrderByDescending(x => x))
                     {
-                        var partitionOutput = ExecuteAndPrintOutput(client, $"disk remove_ownership {disk.NodeName}P{partition}", "Volumes must be taken offline", TimeSpan.FromSeconds(10));
+                        var partitionOutput = ExecuteAndPrintOutput(client, $"disk remove_ownership {disk.NodeName}P{partition}", "Volumes must be taken offline", TimeSpan.FromSeconds(5));
 
                         if (partitionOutput != null)
                         {
@@ -402,7 +471,7 @@ namespace NetappDiskCleaner
                         }
                     }
                 }
-                var output = ExecuteAndPrintOutput(client, $"disk remove_ownership {disk.NodeName}", "Volumes must be taken offline", TimeSpan.FromSeconds(10));
+                var output = ExecuteAndPrintOutput(client, $"disk remove_ownership {disk.NodeName}", "Volumes must be taken offline", TimeSpan.FromSeconds(5));
 
                 if (output != null)
                 {
@@ -411,9 +480,9 @@ namespace NetappDiskCleaner
             });
         }
 
-        private List<Disk> GetForeignDisksFromDisks(List<Disk> allDisks, List<Node> nodes)
+        private List<Disk> GetForeignDisksFromDisks(List<Disk> allDisks, List<Node> nodes, List<Disk> unsupportedDisks)
         {
-            return allDisks.Where(disk => !nodes.Exists(node => node.Name == disk.OwnerName) && disk.ContainerType != ContainerType.Broken).ToList();
+            return allDisks.Where(disk => !nodes.Exists(node => node.Name == disk.OwnerName) && disk.ContainerType != ContainerType.Broken && disk.ContainerType!= ContainerType.Unsupported && !unsupportedDisks.Exists(disk => disk.ClusterName == disk.ClusterName)).ToList();
         }
 
         private List<Disk> GetDisks(ShellStream stream)
@@ -447,6 +516,8 @@ namespace NetappDiskCleaner
         {
             return v.ToLower() switch
             {
+                "bsas" => DiskType.SATA,
+                "msata" => DiskType.SATA,
                 "sas" => DiskType.SAS,
                 "ssd" => DiskType.SSD,
                 _ => DiskType.DontCare
@@ -461,6 +532,7 @@ namespace NetappDiskCleaner
                 "unassigned" => ContainerType.Unassigned,
                 "shared" => ContainerType.Shared,
                 "broken" => ContainerType.Broken,
+                "unsupported" => ContainerType.Unsupported,
                 _ => ContainerType.DontCare,
             };
         }
@@ -559,7 +631,6 @@ namespace NetappDiskCleaner
             SSHCommTextBlock.Text = $"{SSHCommTextBlock.Text}{Environment.NewLine}{output}";
             SSHCommTextBlock.ScrollToEnd();
         }
-
         private string ExecuteAndPrintOutput(ShellStream client, string commandText, string textToExpect = ">", TimeSpan? timeout = null)
         {
             client.Write(commandText + "\n");
@@ -599,10 +670,21 @@ namespace NetappDiskCleaner
         }
         private void TerminateSSHSession(ShellStream stream, SshClient sshClient)
         {
+            if (!areStreamsOpen)
+            {
+                return;
+            }
+
             stream.Close();
             stream.Dispose();
-            sshClient.Disconnect();
+
+            if (sshClient.IsConnected)
+            {
+                sshClient.Disconnect();
+            }
             sshClient.Dispose();
+
+            areStreamsOpen = false;
         }
 
         private void AppenedTextToCurrentProgress(string textToAppend)
@@ -614,7 +696,12 @@ namespace NetappDiskCleaner
         {
             foreach (var disk in disks)
             {
-                ExecuteAndPrintOutput(stream, $"disk removeowner {disk.ClusterName}");
+                var output = ExecuteAndPrintOutput(stream, $"disk removeowner {disk.ClusterName}");
+                if (output.Contains("Background disk firmware update"))
+                {
+                    AppenedTextToCurrentProgress("Disk firmware update is in progress");
+                    Thread.Sleep(65000);
+                }
             }
         }
 
@@ -643,6 +730,7 @@ namespace NetappDiskCleaner
                 UnownedDisksCheckBox.IsChecked = false;
                 OwnedDisksCheckBox.IsChecked = false;
                 BrokenDisksCheckBox.IsChecked = false;
+                UnsupportedDisksCheckBox.IsChecked = false;
             }
             else if (checkbox.Name != AllDisksCheckBox.Name && checkbox.IsChecked.Value)
             {
@@ -671,6 +759,10 @@ namespace NetappDiskCleaner
                 {
                     doesPassFilter |= _brokenDisks.Any(disk => disk.ClusterName == filteredDisk.ClusterName);
                 }
+                if (UnsupportedDisksCheckBox.IsChecked.Value)
+                {
+                    doesPassFilter |= _unsupportedDisks.Any(disk => disk.ClusterName == filteredDisk.ClusterName);
+                }
 
                 return doesPassFilter;
             });
@@ -679,19 +771,29 @@ namespace NetappDiskCleaner
         }
         private void ExecuteButton_Click(object sender, RoutedEventArgs e)
         {
+            UpdateTaskbarErrorState(1, System.Windows.Shell.TaskbarItemProgressState.Paused);
             MessageBoxResult executeConfirmationMessageBox = MessageBox.Show("This will start the cleanup process, are you sure you want to continue?", "Cleanup Confirmation", MessageBoxButton.YesNo);
+
             if (executeConfirmationMessageBox == MessageBoxResult.Yes)
             {
+                UpdateTaskbarErrorState(0, System.Windows.Shell.TaskbarItemProgressState.Normal, "Running");
+
                 var firstOwnedNode = nodes[0];
 
                 AppenedTextToCurrentProgress("Entering node shell");
                 SetEnvironmentAndEnterNodeShell(stream, firstOwnedNode);
 
+                taskbarInfo.ProgressValue = 0.1;
+
                 AppenedTextToCurrentProgress("Retrieving disk info from (Node Shell)");
                 EnrichDisksViaNodeShell(stream, _foreignDisks);
 
-                AppenedTextToCurrentProgress("Removing owner (Node Shell) this might take some time");
+                taskbarInfo.ProgressValue = 0.2;
+
+                AppenedTextToCurrentProgress($"Removing owner (Node Shell) this might take some time");
                 RemoveOwnerOfDisksNodeMode(stream, _foreignDisks);
+
+                taskbarInfo.ProgressValue = 0.5;
 
                 AppenedTextToCurrentProgress("Exiting node shell");
                 ExitNodeShell(stream);
@@ -699,11 +801,15 @@ namespace NetappDiskCleaner
                 AppenedTextToCurrentProgress("Assigning disks to node (Cluster Shell)");
                 AssignDisksToNode(stream, _foreignDisks, firstOwnedNode);
 
+                taskbarInfo.ProgressValue = 0.6;
+
                 AppenedTextToCurrentProgress("Entering node shell");
                 SetEnvironmentAndEnterNodeShell(stream, firstOwnedNode);
 
                 AppenedTextToCurrentProgress("Assigning disks to node (Node Shell)");
                 AssignDisksToNodeNodeMode(stream, _foreignDisks, firstOwnedNode);
+
+                taskbarInfo.ProgressValue = 0.7;
 
                 AppenedTextToCurrentProgress("Exiting node shell");
                 ExitNodeShell(stream);
@@ -714,11 +820,15 @@ namespace NetappDiskCleaner
                 AppenedTextToCurrentProgress("Removing stale record");
                 RemoveStaleRecordFromAggregates(stream, foreignAggregates);
 
+                taskbarInfo.ProgressValue = 0.8;
+
                 AppenedTextToCurrentProgress("Entering node shell");
                 SetEnvironmentAndEnterNodeShell(stream, firstOwnedNode);
 
                 AppenedTextToCurrentProgress("Unpartitioning disks");
                 UnpartitionDisks(stream, _foreignDisks);
+
+                taskbarInfo.ProgressValue = 0.85;
 
                 AppenedTextToCurrentProgress("Exiting node shell");
                 ExitNodeShell(stream);
@@ -726,27 +836,43 @@ namespace NetappDiskCleaner
                 AppenedTextToCurrentProgress("Zeroing spares (if needed)");
                 ZerospareDisksIfNeeded(stream, _foreignDisks);
 
+                taskbarInfo.ProgressValue = 0.9;
+
+
                 AppenedTextToCurrentProgress("Removing ownership from disk");
                 RemoveOwnerOfDisksClusterMode(stream, _foreignDisks);
 
+                taskbarInfo.ProgressValue = 1;
+
                 AppenedTextToCurrentProgress("Finished!");
                 TerminateSSHSession(stream, sshClient);
+                MessageBox.Show($"Finished the cleanup for {_foreignDisks.Count} disks", "Finished!");
+
+                UpdateTaskbarErrorState(0, System.Windows.Shell.TaskbarItemProgressState.None, null);
+
                 SetButtonsState(true);
             }
         }
 
         private void CleanUI()
         {
-
-            //TODO - Complete
             _allDisks = new List<Disk>();
             _foreignDisks = new List<Disk>();
             _brokenDisks = new List<Disk>();
-
+            _displayedDisks = new List<Disk>();
+            nodes = new List<Node>();
+            aggregates = new List<Aggregate>();
             DisplayedDisks = new List<Disk>();
+            ONTAPVersion.Content = "";
+            AppenedTextToCurrentProgress("");
             SSHCommTextBlock.Clear();
             CurrentProgress.Clear();
 
+        }
+
+        private void Window_Closed(object sender, EventArgs e)
+        {
+            TerminateSSHSession(stream, sshClient);
         }
     }
 }

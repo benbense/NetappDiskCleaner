@@ -9,6 +9,7 @@ namespace NetappDiskCleaner.Model
         DontCare,
         SAS,
         SSD,
+        SATA,
     }
 
     public enum ContainerType
@@ -18,6 +19,7 @@ namespace NetappDiskCleaner.Model
         Shared,
         Broken,
         Unassigned,
+        Unsupported,
     }
 
     public class Disk
