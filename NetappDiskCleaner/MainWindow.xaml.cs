@@ -127,6 +127,12 @@ namespace NetappDiskCleaner
             _unsupportedDisks = GetUnsupportedDisks(_allDisks);
             ShowAllUnsupportedDisks(_unsupportedDisks);
 
+            if (nodes.Count > 1 && _unsupportedDisks.Count >= 1)
+            {
+                UpdateTaskbarErrorState(1, System.Windows.Shell.TaskbarItemProgressState.Paused);
+                MessageBox.Show($"Disovered {_unsupportedDisks.Count} unsupported disks, this might happen when using IOM's with different versions on a system with more that 1 node. {Environment.NewLine}You have {nodes.Count} nodes in your system. {Environment.NewLine}Check your IOM's versions.");
+            }
+
             _foreignDisks = GetForeignDisksFromDisks(_allDisks, nodes, _unsupportedDisks);
             ShowAllForeignDisks(_foreignDisks);
 
@@ -482,7 +488,7 @@ namespace NetappDiskCleaner
 
         private List<Disk> GetForeignDisksFromDisks(List<Disk> allDisks, List<Node> nodes, List<Disk> unsupportedDisks)
         {
-            return allDisks.Where(disk => !nodes.Exists(node => node.Name == disk.OwnerName) && disk.ContainerType != ContainerType.Broken && disk.ContainerType!= ContainerType.Unsupported && !unsupportedDisks.Exists(disk => disk.ClusterName == disk.ClusterName)).ToList();
+            return allDisks.Where(disk => !nodes.Exists(node => node.Name == disk.OwnerName) && disk.ContainerType != ContainerType.Broken && disk.ContainerType != ContainerType.Unsupported && !unsupportedDisks.Exists(disk => disk.ClusterName == disk.ClusterName)).ToList();
         }
 
         private List<Disk> GetDisks(ShellStream stream)
