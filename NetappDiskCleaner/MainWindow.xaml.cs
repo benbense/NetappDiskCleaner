@@ -191,6 +191,11 @@ namespace NetappDiskCleaner
 
             var lines = result.Split(":");
             var netappVersion = lines[0];
+            var versionExtract = lines[0].Split(" ");
+            var netappVersionExtracted = versionExtract[2].Split("P");
+            double ontapMainVersion = Convert.ToDouble(netappVersionExtracted[0]);
+            int ontapPReleaseVersion = Convert.ToInt32(netappVersionExtracted[1]);
+
             if (!netappVersion.Contains("NetApp Release"))
             {
                 ONTAPVersion.Foreground = System.Windows.Media.Brushes.Red;
@@ -198,8 +203,19 @@ namespace NetappDiskCleaner
             }
             else
             {
-                ONTAPVersion.Foreground = System.Windows.Media.Brushes.Green;
-                ONTAPVersion.Content = lines[0];
+                if (ontapMainVersion == 9.7)
+                {
+                    ONTAPVersion.Foreground = System.Windows.Media.Brushes.Green;
+                    ONTAPVersion.Content = lines[0];
+                }
+                else
+                {
+                    ONTAPVersion.Foreground = System.Windows.Media.Brushes.Orange;
+                    ONTAPVersion.Content = lines[0];
+                    UpdateTaskbarErrorState(1, System.Windows.Shell.TaskbarItemProgressState.Paused);
+                    MessageBox.Show($"Version {ontapMainVersion}P{ontapPReleaseVersion} is not tested yet and might not be supported", "Check ONTAP Version");
+                    ONTAPVersion.ToolTip = $"Version {ontapMainVersion}P{ontapPReleaseVersion} might not be supported";
+                }
             }
         }
 
