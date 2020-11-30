@@ -19,7 +19,7 @@ namespace NetappDiskCleaner.Model
         Shared,
         Broken,
         Unassigned,
-        Unsupported,
+        Unknown,
     }
 
     public class Disk

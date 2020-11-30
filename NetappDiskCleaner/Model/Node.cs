@@ -7,5 +7,6 @@ namespace NetappDiskCleaner.Model
     public class Node
     {
         public string Name { get; set; }
+        public bool Health { get; set; }
     }
 }
